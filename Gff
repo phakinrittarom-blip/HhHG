@@ -1,0 +1,98 @@
+-- ================================================
+-- FUSE HUB - TOGGLE BUTTON WRAPPER
+-- ================================================
+
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- 1. สร้าง ScreenGui สำหรับปุ่มเปิด/ปิด
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FuseHubToggleGui"
+ScreenGui.ResetOnSpawn = false
+
+-- ป้องกันข้อผิดพลาดกรณีไม่สามารถใส่ใน CoreGui ได้
+local parentSuccess, _ = pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+if not parentSuccess then
+    ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- 2. สร้างปุ่มสี่เหลี่ยมผืนผ้า "ฟิวส์Hub"
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "FuseHubBtn"
+ToggleButton.Parent = ScreenGui
+ToggleButton.Size = UDim2.new(0, 110, 0, 45)
+ToggleButton.Position = UDim2.new(0.02, 0, 0.4, 0) -- ตำแหน่งเริ่มต้น (ฝั่งซ้ายของจอ)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ToggleButton.BorderSizePixel = 0
+ToggleButton.Text = "ฟิวส์Hub"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Active = true
+ToggleButton.Draggable = true -- ทำให้ลากปุ่มไปมาบนหน้าจอได้
+
+-- แต่งขอบโค้งมน
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = ToggleButton
+
+-- แต่งเส้นขอบแสงสีส้ม/แดง
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Thickness = 2
+UIStroke.Color = Color3.fromRGB(230, 60, 60)
+UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+UIStroke.Parent = ToggleButton
+
+-- 3. ฟังก์ชันค้นหา UI ของ Fling GUI อัตโนมัติ
+local function getFlingFrame()
+    -- ค้นหา Frame หรือ ScreenGui ที่ชื่อตรงหรือมีคำว่า Multi-Fling / Fling
+    for _, gui in pairs(CoreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Name ~= "FuseHubToggleGui" then
+            for _, child in pairs(gui:GetDescendants()) do
+                if child:IsA("Frame") and (child.Name:lower():find("fling") or child.Name:lower():find("kilasik")) then
+                    return child
+                end
+            end
+        end
+    end
+    -- ค้นหาเพิ่มเติมใน PlayerGui
+    local player = game.Players.LocalPlayer
+    if player and player:FindFirstChild("PlayerGui") then
+        for _, gui in pairs(player.PlayerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Name ~= "FuseHubToggleGui" then
+                for _, child in pairs(gui:GetDescendants()) do
+                    if child:IsA("Frame") and (child.Name:lower():find("fling") or child.Name:lower():find("kilasik")) then
+                        return child
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- 4. ระบบกดปุ่มเพื่อ ซ่อน/แสดง UI
+ToggleButton.MouseButton1Click:Connect(function()
+    local targetFrame = getFlingFrame()
+    
+    if targetFrame then
+        targetFrame.Visible = not targetFrame.Visible
+        
+        -- Effect การเปลี่ยนสีปุ่มเวลาเปิด/ปิด
+        if targetFrame.Visible then
+            UIStroke.Color = Color3.fromRGB(230, 60, 60) -- สีแดงเมื่อ UI เปิด
+        else
+            UIStroke.Color = Color3.fromRGB(100, 100, 100) -- สีเทาเมื่อ UI ปิด
+        end
+    else
+        -- กรณีหาสคริปต์ Fling หลักไม่เจอ
+        warn("FuseHub: ไม่พบหน้าต่าง Fling GUI ในระบบ")
+    end
+end)
+
+-- ================================================
+-- [นำสคริปต์ Fling หลักของคุณมาวางต่อด้านล่างนี้ได้เลย]
+-- ================================================
