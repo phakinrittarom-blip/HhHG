@@ -1,0 +1,293 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ลบ GUI เก่าถ้ามีอยู่
+if game.CoreGui:FindFirstChild("FlingGuiSystem") then
+    game.CoreGui.FlingGuiSystem:Destroy()
+end
+
+-- สร้าง ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FlingGuiSystem"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+-- 변수/State
+local selectedTargets = {}
+local isFlinging = false
+local flingConnection = nil
+
+-------------------------------------------------
+-- 1. ปุ่มเปิด/ปิด หน้าต่าง GUI (Toggle Button)
+-------------------------------------------------
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "ToggleButton"
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(0, 15, 0.4, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Text = "FLING"
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.TextSize = 14
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true -- สามารถลากปุ่มไปวางจุดอื่นบนจอได้
+ToggleBtn.Parent = ScreenGui
+
+local UICornerBtn = Instance.new("UICorner")
+UICornerBtn.CornerRadius = UDim.new(1, 0) -- ทำให้ปุ่มเป็นวงกลม
+UICornerBtn.Parent = ToggleBtn
+
+local UIStrokeBtn = Instance.new("UIStroke")
+UIStrokeBtn.Color = Color3.fromRGB(230, 50, 50)
+UIStrokeBtn.Thickness = 2
+UIStrokeBtn.Parent = ToggleBtn
+
+-------------------------------------------------
+-- 2. หน้าต่างหลัก (Main Window Frame)
+-------------------------------------------------
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 280, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- แถบหัวเรื่อง (Title Bar)
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, -30, 1, 0)
+TitleText.Position = UDim2.new(0, 5, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "KILASIK'S MULTI-FLING"
+TitleText.TextColor3 = Color3.fromRGB(230, 60, 60)
+TitleText.Font = Enum.Font.SourceSansBold
+TitleText.TextSize = 16
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 1, 0)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.TextSize = 16
+CloseBtn.Parent = TitleBar
+
+-- ข้อความแสดงจำนวนเป้าหมาย
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -20, 0, 20)
+StatusLabel.Position = UDim2.new(0, 10, 0, 35)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Flinging 0 target(s)"
+StatusLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 14
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Parent = MainFrame
+
+-- ScrollingFrame รายชื่อผู้เล่น
+local PlayerScroll = Instance.new("ScrollingFrame")
+PlayerScroll.Size = UDim2.new(1, -20, 0, 200)
+PlayerScroll.Position = UDim2.new(0, 10, 0, 60)
+PlayerScroll.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+PlayerScroll.BorderSizePixel = 0
+PlayerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+PlayerScroll.ScrollBarThickness = 6
+PlayerScroll.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = PlayerScroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 4)
+
+-------------------------------------------------
+-- 3. ปุ่มควบคุมด้านล่าง (Action Buttons)
+-------------------------------------------------
+local StartBtn = Instance.new("TextButton")
+StartBtn.Size = UDim2.new(0.47, 0, 0, 35)
+StartBtn.Position = UDim2.new(0, 10, 0, 270)
+StartBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+StartBtn.Text = "START FLING"
+StartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartBtn.Font = Enum.Font.SourceSansBold
+StartBtn.TextSize = 14
+StartBtn.Parent = MainFrame
+
+local StopBtn = Instance.new("TextButton")
+StopBtn.Size = UDim2.new(0.47, 0, 0, 35)
+StopBtn.Position = UDim2.new(0.53, 0, 0, 270)
+StopBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+StopBtn.Text = "STOP FLING"
+StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopBtn.Font = Enum.Font.SourceSansBold
+StopBtn.TextSize = 14
+StopBtn.Parent = MainFrame
+
+local SelectAllBtn = Instance.new("TextButton")
+SelectAllBtn.Size = UDim2.new(0.47, 0, 0, 25)
+SelectAllBtn.Position = UDim2.new(0, 10, 0, 315)
+SelectAllBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+SelectAllBtn.Text = "SELECT ALL"
+SelectAllBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+SelectAllBtn.Font = Enum.Font.SourceSansBold
+SelectAllBtn.TextSize = 12
+SelectAllBtn.Parent = MainFrame
+
+local DeselectAllBtn = Instance.new("TextButton")
+DeselectAllBtn.Size = UDim2.new(0.47, 0, 0, 25)
+DeselectAllBtn.Position = UDim2.new(0.53, 0, 0, 315)
+DeselectAllBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+DeselectAllBtn.Text = "DESELECT ALL"
+DeselectAllBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+DeselectAllBtn.Font = Enum.Font.SourceSansBold
+DeselectAllBtn.TextSize = 12
+DeselectAllBtn.Parent = MainFrame
+
+-------------------------------------------------
+-- 4. ระบบการทำงาน (Logic & Functions)
+-------------------------------------------------
+
+-- สลับ เปิด/ปิด หน้าต่าง
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+end)
+
+local function updateStatus()
+    local count = 0
+    for _, v in pairs(selectedTargets) do
+        if v then count = count + 1 end
+    end
+    StatusLabel.Text = "Flinging " .. tostring(count) .. " target(s)"
+end
+
+-- อัปเดตรายชื่อผู้เล่นในหน้าต่าง
+local function refreshPlayerList()
+    for _, child in pairs(PlayerScroll:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local ItemFrame = Instance.new("Frame")
+            ItemFrame.Name = player.Name
+            ItemFrame.Size = UDim2.new(1, -6, 0, 30)
+            ItemFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            ItemFrame.BorderSizePixel = 0
+            ItemFrame.Parent = PlayerScroll
+
+            local CheckBox = Instance.new("TextButton")
+            CheckBox.Size = UDim2.new(0, 20, 0, 20)
+            CheckBox.Position = UDim2.new(0, 5, 0.5, -10)
+            CheckBox.BackgroundColor3 = selectedTargets[player.Name] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(50, 50, 50)
+            CheckBox.Text = selectedTargets[player.Name] and "✓" or ""
+            CheckBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            CheckBox.Parent = ItemFrame
+
+            local NameLabel = Instance.new("TextLabel")
+            NameLabel.Size = UDim2.new(1, -35, 1, 0)
+            NameLabel.Position = UDim2.new(0, 32, 0, 0)
+            NameLabel.BackgroundTransparency = 1
+            NameLabel.Text = player.Name
+            NameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+            NameLabel.Font = Enum.Font.SourceSans
+            NameLabel.TextSize = 14
+            NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            NameLabel.Parent = ItemFrame
+
+            CheckBox.MouseButton1Click:Connect(function()
+                selectedTargets[player.Name] = not selectedTargets[player.Name]
+                CheckBox.BackgroundColor3 = selectedTargets[player.Name] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(50, 50, 50)
+                CheckBox.Text = selectedTargets[player.Name] and "✓" or ""
+                updateStatus()
+            end)
+        end
+    end
+    PlayerScroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end
+
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoving:Connect(function(player)
+    selectedTargets[player.Name] = nil
+    refreshPlayerList()
+    updateStatus()
+end)
+
+SelectAllBtn.MouseButton1Click:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            selectedTargets[player.Name] = true
+        end
+    end
+    refreshPlayerList()
+    updateStatus()
+end)
+
+DeselectAllBtn.MouseButton1Click:Connect(function()
+    selectedTargets = {}
+    refreshPlayerList()
+    updateStatus()
+end)
+
+-------------------------------------------------
+-- 5. ระบบ Fling Physics
+-------------------------------------------------
+StartBtn.MouseButton1Click:Connect(function()
+    if isFlinging then return end
+    isFlinging = true
+    
+    flingConnection = RunService.Heartbeat:Connect(function()
+        if not isFlinging then return end
+        
+        local myChar = LocalPlayer.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return end
+        
+        for name, selected in pairs(selectedTargets) do
+            if selected then
+                local targetPlayer = Players:FindFirstChild(name)
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetRoot = targetPlayer.Character.HumanoidRootPart
+                    
+                    -- Fling Mechanics (หมุนตัวความเร็วสูงแล้ววาปไปหาเป้าหมาย)
+                    myRoot.CFrame = targetRoot.CFrame
+                    myRoot.Velocity = Vector3.new(10000, 10000, 10000)
+                    myRoot.RotVelocity = Vector3.new(10000, 10000, 10000)
+                end
+            end
+        end
+    end)
+end)
+
+StopBtn.MouseButton1Click:Connect(function()
+    isFlinging = false
+    if flingConnection then
+        flingConnection:Disconnect()
+        flingConnection = nil
+    end
+    
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if myRoot then
+        myRoot.Velocity = Vector3.new(0, 0, 0)
+        myRoot.RotVelocity = Vector3.new(0, 0, 0)
+    end
+end)
+
+refreshPlayerList()
